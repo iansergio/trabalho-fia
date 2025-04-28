@@ -44,18 +44,6 @@ def emprestar_livro(usuario, titulo):
     st.session_state.usuarios[usuario]["livros"].append(titulo)
     return f"Livro '{titulo}' emprestado com sucesso para {usuario}."
 
-    livro = buscar_livro(titulo)
-    if not livro:
-        return f"Livro '{titulo}' não encontrado."
-    if livro["status"] != "Disponivel":
-        return f"O livro '{titulo}' não está disponível para empréstimo."
-
-    livro["status"] = "Emprestado"
-    if usuario not in st.session_state.usuarios:
-        st.session_state.usuarios[usuario] = {"livros": []}
-    st.session_state.usuarios[usuario]["livros"].append(titulo)
-    return f"Livro '{titulo}' emprestado com sucesso para {usuario}."
-
 def devolver_livro(usuario, titulo):
     if not usuario:
         return "Nome do usuário não informado. Não é possível registrar a devolução."
@@ -76,22 +64,6 @@ def devolver_livro(usuario, titulo):
     else:
         return f"O usuário {usuario} não possui o livro '{titulo}' para devolução."
 
-    if usuario not in st.session_state.usuarios:
-        return f"O usuário '{usuario}' não possui registros de empréstimos."
-
-    livro = buscar_livro(titulo)
-    if not livro:
-        return f"Livro '{titulo}' não encontrado."
-
-    if titulo in st.session_state.usuarios[usuario]["livros"]:
-        st.session_state.usuarios[usuario]["livros"].remove(titulo)
-        livro["status"] = "Disponivel"
-        if not st.session_state.usuarios[usuario]["livros"]:
-            del st.session_state.usuarios[usuario]
-        return f"Livro '{titulo}' devolvido com sucesso."
-    else:
-        return f"O usuário {usuario} não tem o livro '{titulo}' emprestado."
-
 def listar_emprestimos(usuario):
     livros = st.session_state.usuarios.get(usuario, {}).get("livros", [])
     if livros:
@@ -104,13 +76,6 @@ def listar_catalogo():
         return "Nenhum livro cadastrado no catálogo."
     resultado = "📚 Catálogo de Livros Disponíveis:\n"
     for livro in st.session_state.catalogo_livros:
-        resultado += f"- {livro['titulo']} por {livro['autor']} [{livro['tema']}] - Status: {livro['status']}\n"
-    return resultado
-
-    if not catalogo_livros:
-        return "Nenhum livro cadastrado no catálogo."
-    resultado = "📚 Catálogo de Livros Disponíveis:\n"
-    for livro in catalogo_livros:
         resultado += f"- {livro['titulo']} por {livro['autor']} [{livro['tema']}] - Status: {livro['status']}\n"
     return resultado
 
@@ -184,13 +149,7 @@ function_mapping = {
 # Streamlit App
 def main():
     st.set_page_config(page_title="AIBrary - Biblioteca Inteligente", page_icon="📚")
-    st.markdown("""
-        <div style='text-align: center;'>
-            <h1>AIBrary | Assistente Bibliotecário 📚</h1>
-            <h4>Gerencie livros e empréstimos de forma inteligente</h4>
-        </div>
-        <hr>
-    """, unsafe_allow_html=True)
+    st.markdown("""<div style='text-align: center;'> <h1>AIBrary | Assistente Bibliotecário 📚</h1> <h4>Gerencie livros e empréstimos de forma inteligente</h4> </div> <hr>""", unsafe_allow_html=True)
 
     if "chat_history" not in st.session_state:
         st.session_state["chat_history"] = [
@@ -201,6 +160,7 @@ def main():
                 Trabalhe sempre em português e responda de forma breve e clara.
             """}
         ]
+    
     if "pending_action" not in st.session_state:
         st.session_state["pending_action"] = None
         st.session_state["pending_arguments"] = {}
@@ -212,12 +172,9 @@ def main():
             function_name = st.session_state.pending_action
             pending_args = st.session_state.pending_arguments
 
-            # Captura a resposta do usuário
             user_response = user_input.strip()
 
-            # Lida com as pendências
             if function_name in ["emprestar_livro", "devolver_livro"]:
-                # Esperamos: "usuario titulo do livro"
                 dados = user_response.split()
                 if len(dados) >= 2:
                     usuario = dados[0]
@@ -231,7 +188,6 @@ def main():
                     st.session_state.chat_history.append({"role": "assistant", "content": "Por favor, informe seu nome seguido do título do livro."})
 
             elif function_name == "listar_emprestimos":
-                # Aqui só esperamos o nome do usuário
                 usuario = user_response
                 resultado = listar_emprestimos(usuario)
                 st.session_state.chat_history.append({"role": "function", "name": function_name, "content": resultado})
@@ -240,7 +196,6 @@ def main():
                 st.session_state.pending_arguments = {}
 
         else:
-            # Conversa normal, manda o que o usuário digitou para o modelo
             st.session_state.chat_history.append({"role": "user", "content": user_input})
 
             with st.spinner("Consultando a biblioteca..."):
@@ -268,10 +223,8 @@ def main():
                         missing_fields = [field for field in required_fields if field not in arguments or not arguments[field]]
 
                         if missing_fields:
-                            # -> Faltam dados! NÃO EXECUTAR AGORA.
                             st.session_state.pending_action = function_name
                             st.session_state.pending_arguments = arguments
-                            # pergunta conforme o que falta
                             if function_name in ["emprestar_livro", "devolver_livro"]:
                                 st.session_state.chat_history.append({
                                     "role": "assistant",
@@ -282,9 +235,8 @@ def main():
                                     "role": "assistant",
                                     "content": "Por favor, informe seu nome."
                                 })
-                            continue  # Não executar nada agora
+                            continue
                         
-                        # Só chega aqui se NÃO faltar nada
                         resultado = function_mapping[function_name](**arguments)
                         st.session_state.chat_history.append({
                             "role": "function",
@@ -293,7 +245,6 @@ def main():
                         })
                         st.success(f"✅ {resultado}")
                 else:
-                    # Resposta normal do assistente
                     assistant_reply = message.content
                     st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
                     st.info(assistant_reply)
