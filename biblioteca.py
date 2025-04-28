@@ -1,5 +1,6 @@
 import json
 import streamlit as st
+import random
 from groq import Groq  # Verifique se você está importando corretamente a biblioteca
 
 # Banco simulado com livros enriquecidos
@@ -21,7 +22,6 @@ st.session_state["catalogo_livros"] = [
     {"titulo": "Sapiens: Uma Breve História da Humanidade", "autor": "Yuval Noah Harari", "tema": "História", "status": "Disponivel"},
     {"titulo": "O Príncipe", "autor": "Nicolau Maquiavel", "tema": "Filosofia", "status": "Disponivel"},
 ]
-
 
 # Função de recomendação de livros
 def recomendar_livros(titulo):
@@ -45,8 +45,7 @@ def recomendar_livros(titulo):
     
     resposta = "🎯 Recomendações de livros:\n"
     for livro in recomendacoes:
-        resposta += f"- **{livro['titulo']}** por {livro['autor']} ({livro['ano_publicacao']}) - Avaliação: {livro['avaliacao']}/5\n"
-        resposta += f"  *{livro['descricao']}*\n\n"
+        resposta += f"- **{livro['titulo']}** por {livro['autor']} ({livro['tema']}) - Status: {livro['status']}\n"
     
     return resposta
 
@@ -84,7 +83,7 @@ def main():
                     messages=st.session_state.chat_history
                 )
 
-                message = response.choices[0].message['content']
+                message = response['choices'][0]['message']['content']
                 st.session_state.chat_history.append({"role": "assistant", "content": message})
                 st.info(message)
 
