@@ -1,94 +1,263 @@
-import json
 import streamlit as st
-import random
-from groq import Groq  # Verifique se você está importando corretamente a biblioteca
+from groq import Groq
+import json
 
-# Banco simulado com livros enriquecidos
-st.session_state["catalogo_livros"] = [
+if "usuarios" not in st.session_state:
+    st.session_state["usuarios"] = {}
+
+if "catalogo_livros" not in st.session_state:
+    st.session_state["catalogo_livros"] = [
+        {"titulo": "Fundacao", "autor": "Isaac Asimov", "tema": "Ficcao Cientifica", "status": "Disponivel"},
+        {"titulo": "Duna", "autor": "Frank Herbert", "tema": "Ficcao Cientifica", "status": "Disponivel"},
+        {"titulo": "Neuromancer", "autor": "William Gibson", "tema": "Ficcao Cientifica", "status": "Disponivel"},
+    ]
+
+# Banco simulado
+catalogo_livros = [
     {"titulo": "Fundacao", "autor": "Isaac Asimov", "tema": "Ficcao Cientifica", "status": "Disponivel"},
     {"titulo": "Duna", "autor": "Frank Herbert", "tema": "Ficcao Cientifica", "status": "Disponivel"},
     {"titulo": "Neuromancer", "autor": "William Gibson", "tema": "Ficcao Cientifica", "status": "Disponivel"},
-    {"titulo": "1984", "autor": "George Orwell", "tema": "Distopia", "status": "Disponivel"},
-    {"titulo": "O Hobbit", "autor": "J.R.R. Tolkien", "tema": "Fantasia", "status": "Disponivel"},
-    {"titulo": "Harry Potter e a Pedra Filosofal", "autor": "J.K. Rowling", "tema": "Fantasia", "status": "Disponivel"},
-    {"titulo": "O Senhor dos Anéis: A Sociedade do Anel", "autor": "J.R.R. Tolkien", "tema": "Fantasia", "status": "Emprestado"},
-    {"titulo": "A Guerra dos Tronos", "autor": "George R.R. Martin", "tema": "Fantasia", "status": "Disponivel"},
-    {"titulo": "O Código Da Vinci", "autor": "Dan Brown", "tema": "Mistério", "status": "Disponivel"},
-    {"titulo": "A Menina que Roubava Livros", "autor": "Markus Zusak", "tema": "Ficção Histórica", "status": "Disponivel"},
-    {"titulo": "O Caçador de Pipas", "autor": "Khaled Hosseini", "tema": "Drama", "status": "Disponivel"},
-    {"titulo": "O Diário de Anne Frank", "autor": "Anne Frank", "tema": "Memórias", "status": "Emprestado"},
-    {"titulo": "Mestre do Jogo", "autor": "Sidney Sheldon", "tema": "Suspense", "status": "Disponivel"},
-    {"titulo": "O Poder do Hábito", "autor": "Charles Duhigg", "tema": "Psicologia", "status": "Disponivel"},
-    {"titulo": "Sapiens: Uma Breve História da Humanidade", "autor": "Yuval Noah Harari", "tema": "História", "status": "Disponivel"},
-    {"titulo": "O Príncipe", "autor": "Nicolau Maquiavel", "tema": "Filosofia", "status": "Disponivel"},
 ]
 
-# Função de recomendação de livros
-def recomendar_livros(titulo):
-    livro_referencia = next((livro for livro in st.session_state.catalogo_livros if livro['titulo'].lower() == titulo.lower()), None)
-    
-    if not livro_referencia:
-        return f"Livro '{titulo}' não encontrado no catálogo."
-    
-    tema = livro_referencia['tema']
-    autor = livro_referencia['autor']
-    
-    livros_recomendados = [
-        livro for livro in st.session_state.catalogo_livros 
-        if livro['tema'] == tema or livro['autor'] == autor and livro['titulo'] != titulo
-    ]
-    
-    if not livros_recomendados:
-        return "Desculpe, não temos livros recomendados no momento."
+usuarios = {}
 
-    recomendacoes = random.sample(livros_recomendados, min(3, len(livros_recomendados)))
-    
-    resposta = "🎯 Recomendações de livros:\n"
-    for livro in recomendacoes:
-        resposta += f"- **{livro['titulo']}** por {livro['autor']} ({livro['tema']}) - Status: {livro['status']}\n"
-    
-    return resposta
+# Funções do sistema
+def buscar_livro(titulo):
+    for livro in st.session_state.catalogo_livros:
+        if livro["titulo"].lower() == titulo.lower():
+            return livro
+    return None
 
-# Função principal para execução do aplicativo
+def emprestar_livro(usuario, titulo):
+    if not usuario:
+        return "Nome do usuário não informado. Não é possível registrar o empréstimo."
+
+    livro = buscar_livro(titulo)
+    if not livro:
+        return f"Livro '{titulo}' não encontrado."
+    if livro["status"] != "Disponivel":
+        return f"O livro '{titulo}' não está disponível para empréstimo."
+
+    livro["status"] = "Emprestado"
+    if usuario not in st.session_state.usuarios:
+        st.session_state.usuarios[usuario] = {"livros": []}
+    st.session_state.usuarios[usuario]["livros"].append(titulo)
+    return f"Livro '{titulo}' emprestado com sucesso para {usuario}."
+
+def devolver_livro(usuario, titulo):
+    if not usuario:
+        return "Nome do usuário não informado. Não é possível registrar a devolução."
+    
+    if usuario not in st.session_state.usuarios:
+        return f"O usuário '{usuario}' não possui registros de empréstimos."
+    
+    livro = buscar_livro(titulo)
+    if not livro:
+        return f"Livro '{titulo}' não encontrado."
+    
+    if titulo in st.session_state.usuarios[usuario]["livros"]:
+        st.session_state.usuarios[usuario]["livros"].remove(titulo)
+        livro["status"] = "Disponivel"
+        if not st.session_state.usuarios[usuario]["livros"]:
+            del st.session_state.usuarios[usuario]
+        return f"Livro '{titulo}' devolvido com sucesso."
+    else:
+        return f"O usuário {usuario} não possui o livro '{titulo}' para devolução."
+
+def listar_emprestimos(usuario):
+    livros = st.session_state.usuarios.get(usuario, {}).get("livros", [])
+    if livros:
+        return f"Livros emprestados por {usuario}: {', '.join(livros)}"
+    else:
+        return f"{usuario} não possui empréstimos ativos."
+
+def listar_catalogo():
+    if not st.session_state.catalogo_livros:
+        return "Nenhum livro cadastrado no catálogo."
+    resultado = "📚 Catálogo de Livros Disponíveis:\n"
+    for livro in st.session_state.catalogo_livros:
+        resultado += f"- {livro['titulo']} por {livro['autor']} [{livro['tema']}] - Status: {livro['status']}\n"
+    return resultado
+
+# Definições para a IA
+function_definitions = [
+    {
+        "type": "function",
+        "function": {
+            "name": "emprestar_livro",
+            "description": "Emprestar um livro a um usuário",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "usuario": {"type": "string", "description": "Nome do usuário"},
+                    "titulo": {"type": "string", "description": "Título do livro"}
+                },
+                "required": ["usuario", "titulo"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "devolver_livro",
+            "description": "Registrar a devolução de um livro",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "usuario": {"type": "string", "description": "Nome do usuário"},
+                    "titulo": {"type": "string", "description": "Título do livro"}
+                },
+                "required": ["usuario", "titulo"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "listar_emprestimos",
+            "description": "Listar livros emprestados por um usuário",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "usuario": {"type": "string", "description": "Nome do usuário"}
+                },
+                "required": ["usuario"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "listar_catalogo",
+            "description": "Listar todos os livros disponíveis no catálogo da biblioteca",
+            "parameters": {
+                "type": "object",
+                "properties": {}
+            }
+        }
+    }
+]
+
+# Mapeamento
+function_mapping = {
+    "emprestar_livro": emprestar_livro,
+    "devolver_livro": devolver_livro,
+    "listar_emprestimos": listar_emprestimos,
+    "listar_catalogo": listar_catalogo
+}
+
+# Streamlit App
 def main():
     st.set_page_config(page_title="AIBrary - Biblioteca Inteligente", page_icon="📚")
-    st.markdown("""
-        <div style='text-align: center;'>
-            <h1>AIBrary | Assistente Bibliotecário 📚</h1>
-            <h4>Gerencie livros e empréstimos de forma inteligente</h4>
-        </div>
-        <hr>
-    """, unsafe_allow_html=True)
+    st.markdown("""<div style='text-align: center;'> <h1>AIBrary | Assistente Bibliotecário 📚</h1> <h4>Gerencie livros e empréstimos de forma inteligente</h4> </div> <hr>""", unsafe_allow_html=True)
 
     if "chat_history" not in st.session_state:
         st.session_state["chat_history"] = [
             {"role": "system", "content": """
-                Você é AIBrary, um assistente de biblioteca. Gerencie empréstimos, devoluções, recomendações e informações de livros.
+                Você é AIBrary, um assistente de biblioteca. Gerencie empréstimos apenas com nome e título do livro.
                 Nunca exija cadastro de email ou dados extras.
                 Se faltar informações obrigatórias, solicite educadamente.
                 Trabalhe sempre em português e responda de forma breve e clara.
             """}
         ]
+    
+    if "pending_action" not in st.session_state:
+        st.session_state["pending_action"] = None
+        st.session_state["pending_arguments"] = {}
 
     user_input = st.chat_input("Digite sua mensagem...")
 
     if user_input:
-        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        if st.session_state.pending_action:
+            function_name = st.session_state.pending_action
+            pending_args = st.session_state.pending_arguments
 
-        with st.spinner("Consultando a biblioteca..."):
-            client = Groq(api_key="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")
-            try:
+            user_response = user_input.strip()
+
+            if function_name in ["emprestar_livro", "devolver_livro"]:
+                dados = user_response.split()
+                if len(dados) >= 2:
+                    usuario = dados[0]
+                    titulo = " ".join(dados[1:])
+                    resultado = function_mapping[function_name](usuario, titulo)
+                    st.session_state.chat_history.append({"role": "function", "name": function_name, "content": resultado})
+                    st.success(f"✅ {resultado}")
+                    st.session_state.pending_action = None
+                    st.session_state.pending_arguments = {}
+                else:
+                    st.session_state.chat_history.append({"role": "assistant", "content": "Por favor, informe seu nome seguido do título do livro."})
+
+            elif function_name == "listar_emprestimos":
+                usuario = user_response
+                resultado = listar_emprestimos(usuario)
+                st.session_state.chat_history.append({"role": "function", "name": function_name, "content": resultado})
+                st.success(f"✅ {resultado}")
+                st.session_state.pending_action = None
+                st.session_state.pending_arguments = {}
+
+        else:
+            st.session_state.chat_history.append({"role": "user", "content": user_input})
+
+            with st.spinner("Consultando a biblioteca..."):
+                client = Groq(api_key="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")
                 response = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",  # Ou qualquer modelo válido da Groq
-                    messages=st.session_state.chat_history
+                    model="llama-3.3-70b-versatile",
+                    messages=st.session_state.chat_history,
+                    tools=function_definitions
                 )
 
-                message = response['choices'][0]['message']['content']
-                st.session_state.chat_history.append({"role": "assistant", "content": message})
-                st.info(message)
+                message = response.choices[0].message
 
-            except Exception as e:
-                st.error(f"Ocorreu um erro ao acessar a API da Groq: {e}")
+                if hasattr(message, "tool_calls") and message.tool_calls:
+                    for tool_call in message.tool_calls:
+                        function_name = tool_call.function.name
+                        arguments = json.loads(tool_call.function.arguments)
+
+                        required_fields = {
+                            "emprestar_livro": ["usuario", "titulo"],
+                            "devolver_livro": ["usuario", "titulo"],
+                            "listar_emprestimos": ["usuario"],
+                            "listar_catalogo": []
+                        }.get(function_name, [])
+
+                        missing_fields = [field for field in required_fields if field not in arguments or not arguments[field]]
+
+                        if missing_fields:
+                            st.session_state.pending_action = function_name
+                            st.session_state.pending_arguments = arguments
+                            if function_name in ["emprestar_livro", "devolver_livro"]:
+                                st.session_state.chat_history.append({
+                                    "role": "assistant",
+                                    "content": "Por favor, informe seu nome seguido do título do livro."
+                                })
+                            elif function_name == "listar_emprestimos":
+                                st.session_state.chat_history.append({
+                                    "role": "assistant",
+                                    "content": "Por favor, informe seu nome."
+                                })
+                            continue
+                        
+                        resultado = function_mapping[function_name](**arguments)
+                        st.session_state.chat_history.append({
+                            "role": "function",
+                            "name": function_name,
+                            "content": resultado
+                        })
+                        st.success(f"✅ {resultado}")
+                else:
+                    assistant_reply = message.content
+                    st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
+                    st.info(assistant_reply)
+
+    st.divider()
+    st.subheader("Histórico de Conversa")
+    for msg in st.session_state.chat_history:
+        if msg["role"] == "user":
+            st.chat_message("user").markdown(f"{msg['content']}")
+        elif msg["role"] == "assistant":
+            st.chat_message("assistant").markdown(f"{msg['content']}")
+        elif msg["role"] == "function":
+            st.chat_message("assistant").markdown(f"[Execução: {msg['name']}] {msg['content']}")
 
 if __name__ == "__main__":
     main()
