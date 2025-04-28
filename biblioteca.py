@@ -77,11 +77,10 @@ def main():
         st.session_state.chat_history.append({"role": "user", "content": user_input})
 
         with st.spinner("Consultando a biblioteca..."):
-            # Simplesmente mandando a mensagem para o modelo
-            client = Groq(api_key="sua_chave_api_aqui")
+            client = Groq(api_key="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")
             try:
                 response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",  # Ou qualquer modelo válido da Groq
+                    model="llama-3.3-70b-versatile",  # Ou qualquer modelo válido da Groq
                     messages=st.session_state.chat_history
                 )
 
